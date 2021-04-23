@@ -38,9 +38,23 @@ defmodule WorkersReportGenerator do
   ]
 
   def build(filename) do
-    filename
-    |> Parser.parse_file()
-    |> Enum.reduce(report_acc(), fn line, report -> sum_values(line, report) end)
+    result =
+      filename
+      |> Parser.parse_file()
+      |> Enum.reduce(report_acc(), fn line, report -> sum_values(line, report) end)
+  end
+
+  def build_from_many(filenames) when not is_list(filenames) do
+    {:error, "Please provide a list of strings"}
+  end
+
+  def build_from_many(filenames) do
+    result =
+      filenames
+      |> Task.async_stream(&build/1)
+      |> Enum.reduce(report_acc(), fn {:ok, result}, report -> sum_reports(result, report) end)
+
+    {:ok, result}
   end
 
   defp sum_values(
@@ -60,6 +74,33 @@ defmodule WorkersReportGenerator do
       put_in(hours_per_year, [woker, year], hours_per_year[woker][year] + worked_hours)
 
     %{all_hours: all_hours, hours_per_month: hours_per_month, hours_per_year: hours_per_year}
+  end
+
+  defp sum_reports(
+         %{
+           all_hours: all_hours_1,
+           hours_per_month: hours_per_month_1,
+           hours_per_year: hours_per_year_1
+         },
+         %{
+           all_hours: all_hours_2,
+           hours_per_month: hours_per_month_2,
+           hours_per_year: hours_per_year_2
+         }
+       ) do
+    all_hours = merge_maps(all_hours_1, all_hours_2)
+    hours_per_month = merge_second_layer_maps(hours_per_month_1, hours_per_month_2)
+    hours_per_year = merge_second_layer_maps(hours_per_year_1, hours_per_year_2)
+
+    %{all_hours: all_hours, hours_per_month: hours_per_month, hours_per_year: hours_per_year}
+  end
+
+  defp merge_maps(map_1, map_2) do
+    Map.merge(map_1, map_2, fn _key, value_1, value_2 -> value_1 + value_2 end)
+  end
+
+  defp merge_second_layer_maps(map_1, map_2) do
+    Map.merge(map_1, map_2, fn _key, value_1, value_2 -> merge_maps(value_1, value_2) end)
   end
 
   def report_acc() do
