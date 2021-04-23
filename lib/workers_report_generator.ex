@@ -89,18 +89,22 @@ defmodule WorkersReportGenerator do
          }
        ) do
     all_hours = merge_maps(all_hours_1, all_hours_2)
-    hours_per_month = merge_second_layer_maps(hours_per_month_1, hours_per_month_2)
-    hours_per_year = merge_second_layer_maps(hours_per_year_1, hours_per_year_2)
+    hours_per_month = merge_maps(hours_per_month_1, hours_per_month_2, 2)
+    hours_per_year = merge_maps(hours_per_year_1, hours_per_year_2, 2)
 
     %{all_hours: all_hours, hours_per_month: hours_per_month, hours_per_year: hours_per_year}
   end
 
-  defp merge_maps(map_1, map_2) do
+  defp merge_maps(map_1, map_2, _number_of_layers \\ 1)
+
+  defp merge_maps(map_1, map_2, number_of_layers) when number_of_layers == 1 do
     Map.merge(map_1, map_2, fn _key, value_1, value_2 -> value_1 + value_2 end)
   end
 
-  defp merge_second_layer_maps(map_1, map_2) do
-    Map.merge(map_1, map_2, fn _key, value_1, value_2 -> merge_maps(value_1, value_2) end)
+  defp merge_maps(map_1, map_2, number_of_layers) when number_of_layers >= 1 do
+    Map.merge(map_1, map_2, fn _key, value_1, value_2 ->
+      merge_maps(value_1, value_2, number_of_layers - 1)
+    end)
   end
 
   def report_acc() do
